@@ -24,7 +24,19 @@ router.post('/create', authMiddleware, async (req, res) => {
 
 router.get('/', async (req, res) => {
   try {
-    const events = await Event.find().populate('organizer', 'username');
+    const { q, startDate, endDate } = req.query;
+    const query = {
+      ...(q && {
+        $or: [
+          { title: { $regex: q, $options: 'i' } },
+          { description: { $regex: q, $options: 'i' } }
+        ]
+      }),
+      ...(startDate && endDate && {
+        date: { $gte: new Date(startDate), $lte: new Date(endDate) }
+      })
+    };
+    const events = await Event.find(query).populate('organizer', 'username');
     res.json(events);
   } catch (error) {
     res.status(500).json({ error: error.message });
