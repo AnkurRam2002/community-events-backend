@@ -5,6 +5,7 @@ const authMiddleware = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
+// Create a new event
 router.post('/create', authMiddleware, async (req, res) => {
   const { title, description, date, location } = req.body;
   try {
@@ -22,6 +23,7 @@ router.post('/create', authMiddleware, async (req, res) => {
   }
 });
 
+// Get all events
 router.get('/', async (req, res) => {
   try {
     const { q, startDate, endDate } = req.query;
@@ -40,6 +42,76 @@ router.get('/', async (req, res) => {
     res.json(events);
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Get event details
+router.get('/:id', async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id).populate('organizer', 'username');
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+    res.json(event);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch event details' });
+  }
+});
+
+// Participate in an event
+router.post('/:id/participate', authMiddleware, async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id);
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    if (!event.participants.includes(req.user.userId)) {
+      event.participants.push(req.user.userId);
+      await event.save();
+    }
+
+    res.json({ message: 'Successfully participated in the event!' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to participate in the event.' });
+  }
+});
+
+// Get events created by the logged-in user
+router.get('/my-events', authMiddleware, async (req, res) => {
+  try {
+    const events = await Event.find({ organizer: req.user.userId });
+    res.json(events);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch your events.' });
+  }
+});
+
+// Update event details
+router.put('/:id', authMiddleware, async (req, res) => {
+  try {
+    const { title, description, date, location } = req.body;
+    const event = await Event.findOneAndUpdate(
+      { _id: req.params.id, organizer: req.user.userId }, // Ensure only the creator can update
+      { title, description, date, location },
+      { new: true }
+    );
+
+    if (!event) return res.status(404).json({ error: 'Event not found or unauthorized.' });
+    res.json(event);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update event.' });
+  }
+});
+
+// Get event participants
+router.get('/:id/participants', async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id).populate('participants', 'username email');
+    if (!event) return res.status(404).json({ error: 'Event not found.' });
+    res.json(event.participants);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch participants.' });
   }
 });
 
